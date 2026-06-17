@@ -1,0 +1,23 @@
+# ESP-IDF build output
+build/
+**/build/
+managed_components/
+dependencies.lock
+
+# Generated/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python helpers
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
