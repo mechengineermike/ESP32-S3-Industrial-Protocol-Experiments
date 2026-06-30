@@ -387,6 +387,145 @@ Learnings:
 - The current SD proof only appends once at boot. Periodic logging and wear/error handling still need a follow-up stress test.
 - The OPC UA status-node pattern is useful for embedded probes because it avoids needing serial logs for every peripheral result.
 
+## Experiment 12: Periodic SD Logging, Live OPC UA Values, And Command Writes
+
+Question: Can the firmware keep a client session alive while periodically appending to SD, updating live OPC UA status values, and accepting a simple command write?
+
+Result: Yes.
+
+Firmware change:
+
+- Replace `UA_Server_run()` with explicit startup/iterate/shutdown calls so the server task can update live nodes:
+
+```text
+UA_Server_run_startup(server)
+UA_Server_run_iterate(server, true)
+UA_Server_run_shutdown(server)
+```
+
+- Add a background SD logger task that appends to `/sdcard/opclog.csv` every 5 seconds.
+- Add live/status nodes:
+
+```text
+ns=1;s=sd_append_count
+ns=1;s=reset_command
+ns=1;s=last_command_status
+```
+
+- Expand writable node access flags to include status and timestamp writes:
+
+```text
+UA_ACCESSLEVELMASK_READ
+UA_ACCESSLEVELMASK_WRITE
+UA_ACCESSLEVELMASK_STATUSWRITE
+UA_ACCESSLEVELMASK_TIMESTAMPWRITE
+```
+
+Important failed intermediate:
+
+- The first manual iterate-loop build skipped `UA_Server_run_startup()`.
+- Ethernet still pinged, but TCP port `4840` refused connections.
+- This proved that `UA_Server_run()` was previously doing listener startup for us.
+
+Evidence:
+
+- Corrected periodic-logging firmware built and flashed.
+- A 30-second single-session Python OPC UA poll read four nodes once per second while `sd_append_count` advanced from `8` to `14`.
+- Normal Python helper write initially failed with `BadWriteNotSupported`.
+- Low-level value-only write also failed until status/timestamp write access bits and `userAccessLevel` were set.
+- After adding those access bits, both writes succeeded:
+  - helper write changed `simulated_value` from `1234` to `2222`
+  - low-level write changed it from `2222` to `3333`
+- Command-node transaction succeeded:
+  - wrote `7777` to `simulated_value`
+  - wrote `1` to `reset_command`
+  - firmware reset `simulated_value` to `1234`
+  - firmware cleared `reset_command` to `0`
+  - firmware incremented `last_command_status` from `0` to `1`
+- A post-command 15-second polling run stayed connected while `sd_append_count` advanced from `13` to `16`.
+
+Measured flash and linked memory for the command/logging build:
+
+```text
+Current app partition:         0x177000 bytes = 1,536,000 bytes
+MINIMAL + SD + command nodes:  0x89360 bytes  =   562,016 bytes, 63% partition free
+
+Total image size:              561,898 bytes
+DIRAM linked use:              111,255 bytes of 341,760 bytes, 32.55%
+DIRAM linked remaining:        230,505 bytes
+IRAM linked use:                16,383 bytes of 16,384 bytes
+```
+
+Learnings:
+
+- Periodic SD append logging can coexist with a small OPC UA server and sustained client reads.
+- A tiny command-node pattern is feasible in the current `MINIMAL` open62541 profile.
+- Common OPC UA clients may include status or timestamp fields in writes. Writable command nodes should include status/timestamp write access bits unless the final client is known not to send them.
+- Live OPC UA values can be updated safely from the OPC UA server task using explicit `run_startup` / `run_iterate` / `run_shutdown`.
+- Do not call open62541 server APIs casually from unrelated tasks unless thread-safety is deliberately designed; this experiment keeps server node updates in the OPC UA task and lets the SD task communicate through small globals.
+
+## Experiment 13: Runtime Heap Telemetry And Short Soak
+
+Question: What runtime heap headroom remains while OPC UA polling and periodic SD logging are active?
+
+Result: A 2-minute single-client polling soak completed cleanly with stable runtime heap readings.
+
+Firmware change:
+
+- Added read-only runtime telemetry nodes:
+
+```text
+ns=1;s=internal_heap_free
+ns=1;s=internal_heap_min_free
+ns=1;s=psram_free
+ns=1;s=psram_min_free
+```
+
+- These are updated from the OPC UA server task using:
+
+```text
+heap_caps_get_free_size(MALLOC_CAP_INTERNAL)
+heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL)
+heap_caps_get_free_size(MALLOC_CAP_SPIRAM)
+heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM)
+```
+
+Measured flash and linked memory:
+
+```text
+Current app partition:                 0x177000 bytes = 1,536,000 bytes
+MINIMAL + SD + command + heap nodes:   0x892d0 bytes  =   561,872 bytes, 63% partition free
+
+Total image size:                      561,754 bytes
+DIRAM linked use:                      111,271 bytes of 341,760 bytes, 32.56%
+DIRAM linked remaining:                230,489 bytes
+IRAM linked use:                        16,383 bytes of 16,384 bytes
+```
+
+2-minute polling soak:
+
+- One Python OPC UA client session.
+- Read telemetry and functional nodes once per second for 120 seconds.
+- SD logger continued appending every 5 seconds.
+- Session completed without disconnect.
+
+Runtime readings:
+
+```text
+sd_append_count:        10 -> 35
+internal_heap_free:     287,515 bytes stable
+internal_heap_min_free: 286,159 -> 286,135 bytes
+psram_free:             8,300,392 bytes stable
+psram_min_free:         8,234,852 -> 8,234,800 bytes
+```
+
+Interpretation:
+
+- Internal heap is the important runtime limit, but this small application has roughly 287 KB free internal heap during the short soak.
+- Minimum internal heap drifted by only 24 bytes during the 2-minute run.
+- PSRAM has roughly 8.3 MB free at runtime, with the 64 KB OPC UA task stack already allocated from PSRAM.
+- This is a short soak, not a production endurance test. The next useful stress test is longer duration plus more client activity.
+
 ## Current Feasibility Interpretation
 
 The ESP32-S3-ETH appears feasible for a focused application:
@@ -405,10 +544,144 @@ The ESP32-S3-ETH is still a constrained target. Avoid:
 
 ## Next OPC UA Experiments
 
-- Continue isolating the multi-node session failure by adding PMS-style nodes one at a time.
-- Decide whether the final product needs generic OPC UA discovery/tree browsing. If yes, retry REDUCED with less aggressive feature cuts and real clients.
-- Compare the current `UA_ENABLE_NODEMANAGEMENT=OFF` profile against a build with node management enabled.
-- Confirm whether writes to command-style nodes work with the final selected open62541 profile.
+- Add PMS-style nodes one at a time.
+- Retest the browse-compatible profile with TwinCAT and another third-party client.
+- Expand the proven command pattern into the final command set only after deciding the actual product commands.
 - Add PMS5003 UART parsing with only current values stored in RAM.
-- Extend SD append logging from one boot-time write into periodic sample logging and measure heap/stack under polling.
+- Run a longer soak test with periodic SD append logging under OPC UA polling and heap telemetry.
 - Re-enable logs temporarily when measuring runtime heap, then turn logs back down.
+
+## Experiment 14: DHCP And Network-Service Discovery
+
+Question: Can the device move from the isolated Pi link to an ordinary LAN and
+be found without a hard-coded address?
+
+Result: Yes. DHCP lease acquisition, hostname publication, mDNS resolution, and
+an OPC UA read through the mDNS name all worked on a temporary Pi-hosted DHCP
+network.
+
+Firmware changes:
+
+- Removed the hard-coded `192.168.50.2` address and enabled the Ethernet DHCP client.
+- Set the DHCP client hostname to `esp32-opcua`.
+- Added mDNS hostname `esp32-opcua.local`.
+- Advertised `_opcua-tcp._tcp` on port `4840`.
+- Deferred creation of the OPC UA server task until `IP_EVENT_ETH_GOT_IP`.
+- Left SD mounting and logging independent of network availability.
+
+Measured test:
+
+```text
+client hostname: esp32-opcua
+Ethernet MAC:    2a:84:85:53:12:20
+test lease:      192.168.50.110
+```
+
+- Ping and TCP port `4840` checks succeeded.
+- `esp32-opcua.local` resolved to the leased address.
+- `opcuaScout` connected through the `.local` name.
+- Reads returned `firmware_status=1`, an advancing SD append count, and
+  approximately 280 KB free internal heap.
+
+Measured firmware cost:
+
+```text
+Previous telemetry image: 0x892d0 bytes
+DHCP + mDNS image:         0x90a60 bytes
+Increase:                  0x7790 bytes = 30,608 bytes
+App partition free:        61%
+```
+
+Learnings:
+
+- The failed first main-LAN test was expected from the old static-IP firmware:
+  it never sent a DHCP request.
+- The W5500 MAC observed by DHCP is `2a:84:85:53:12:20`. The ESP32 base MAC
+  printed while flashing is `28:84:85:53:12:20`; use the W5500 MAC for a router
+  DHCP reservation.
+- Network location discovery does not require a larger OPC UA namespace-zero
+  profile. mDNS can locate the endpoint while clients use explicit NodeIds.
+- Router DHCP lease tables remain the best fallback because some managed or
+  segmented networks suppress mDNS multicast.
+- The first mDNS build used internal RAM for its task and allocations and
+  reported about 280 KB free internal heap. Moving the supported mDNS
+  allocations to PSRAM raised free internal heap to about 284 KB. The final
+  verified readings were 284,379 bytes free internal heap and 8,295,420 bytes
+  free PSRAM while OPC UA and SD logging were active.
+
+## Experiment 15: Browse-Compatible REDUCED Namespace
+
+Question: Can standard OPC UA clients browse the ESP32 without sacrificing the
+memory budget?
+
+Result: Yes. `UA_NAMESPACE_ZERO=REDUCED` with
+`UA_ENABLE_NODEMANAGEMENT=ON` passed endpoint discovery, namespace discovery,
+tree browsing, explicit reads, and concurrent SD logging.
+
+The original REDUCED attempt had node management disabled and produced malformed
+session data. A broad diagnostic build first proved that REDUCED could work, but
+left only about 32 KB internal heap. XML, diagnostics, and status-code
+descriptions were then disabled again while node management remained enabled.
+The lean profile continued to pass.
+
+Final open62541 profile:
+
+```text
+UA_NAMESPACE_ZERO=REDUCED
+UA_ENABLE_NODEMANAGEMENT=ON
+UA_ENABLE_DIAGNOSTICS=OFF
+UA_ENABLE_XML_ENCODING=OFF
+UA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF
+UA_ENABLE_DISCOVERY=OFF
+UA_ENABLE_SUBSCRIPTIONS=OFF
+UA_ENABLE_ENCRYPTION=OFF
+```
+
+Measured results:
+
+```text
+Firmware image:          0xa2180 = 663,936 bytes
+App partition remaining: 0xd4e80 = 872,064 bytes (57%)
+Internal heap free:      210,303 bytes
+PSRAM free:            8,294,360 bytes
+```
+
+The standard `Objects` folder, `Server`, `NamespaceArray`, and all application
+nodes were browseable. The SD append counter continued advancing.
+
+Compared with the prior MINIMAL + mDNS build, browse compatibility costs about
+72 KB flash and 74 KB runtime internal heap. This is acceptable for the focused
+sensor, SD, OPC UA, and small-display design, but internal heap should continue
+to be measured as features are added.
+
+## Experiment 16: Basic Data-Change Subscriptions
+
+Question: Can TwinCAT/CODESYS-style monitored-item workflows coexist with the
+browse-compatible server, SD logging, and available memory?
+
+Result: Yes, after correcting the open62541 platform definition.
+
+Basic subscriptions were enabled while events, alarms, and historizing remained
+disabled. Subscription and monitored-item creation initially succeeded, but no
+`Publish` notifications arrived. The vendored open62541 component defined
+`UA_ARCHITECTURE_LWIP` without `UA_ARCHITECTURE_FREERTOS`, selecting a generic
+monotonic-clock path that did not advance cyclic subscription timers correctly
+on ESP-IDF. Defining both platform macros routed timer calls through the
+ESP-specific `UA_DateTime_nowMonotonic()` implementation.
+
+Measured result:
+
+```text
+Firmware image:          0xa54d0 = 677,072 bytes
+App partition remaining: 0xd1b30 = 858,928 bytes (56%)
+Internal heap free:      203,051 bytes with one subscription
+PSRAM free:            8,294,220 bytes
+```
+
+A Python OPC UA client subscribed to `sd_append_count` and received values
+`6`, `7`, and `8` during a 12-second test. Standard tree browsing and direct
+polling reads continued to work afterward.
+
+Basic subscriptions cost about 13 KB flash and roughly 7 KB internal heap in
+this single-client test. This is a reasonable cost for compatibility with watch
+lists and cyclic PLC client behavior.

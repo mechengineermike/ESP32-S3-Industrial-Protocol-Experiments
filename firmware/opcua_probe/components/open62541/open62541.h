@@ -66,8 +66,8 @@
 #endif
 #define UA_ENABLE_AMALGAMATION
 /* #undef UA_ENABLE_METHODCALLS */
-/* #undef UA_ENABLE_NODEMANAGEMENT */
-/* #undef UA_ENABLE_SUBSCRIPTIONS */
+#define UA_ENABLE_NODEMANAGEMENT
+#define UA_ENABLE_SUBSCRIPTIONS
 /* #undef UA_ENABLE_PUBSUB */
 /* #undef UA_ENABLE_PUBSUB_FILE_CONFIG */
 /* #undef UA_ENABLE_PUBSUB_INFORMATIONMODEL */
@@ -109,7 +109,7 @@
 /* #undef UA_ENABLE_QUERY */
 /* #undef UA_ENABLE_MALLOC_SINGLETON */
 #define UA_ENABLE_DISCOVERY_SEMAPHORE
-/* #undef UA_GENERATED_NAMESPACE_ZERO */
+#define UA_GENERATED_NAMESPACE_ZERO
 /* #undef UA_GENERATED_NAMESPACE_ZERO_FULL */
 /* #undef UA_ENABLE_PUBSUB_SKS */
 
@@ -22062,7 +22062,7 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #define UA_NS0ID_OPTIONSETLENGTH 32750 /* Variable */
 #endif /* UA_NODEIDS_NS0_H_ */ 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/common.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/common.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -22513,7 +22513,7 @@ typedef enum {
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/types.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/types.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -40161,7 +40161,7 @@ _UA_END_DECLS
 
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/log.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/log.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -40326,7 +40326,7 @@ UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/util.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/util.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -40878,7 +40878,7 @@ UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/accesscontrol.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/accesscontrol.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -41022,7 +41022,7 @@ struct UA_AccessControl {
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/certificategroup.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/certificategroup.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -41154,7 +41154,7 @@ _UA_END_DECLS
 
 #endif /* UA_PLUGIN_CERTIFICATEGROUP_H */
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/securitypolicy.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/securitypolicy.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -41647,7 +41647,7 @@ struct UA_PubSubSecurityPolicy {
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/eventloop.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/eventloop.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -42625,7 +42625,7 @@ UA_ConnectionManager_new_LWIP_UDP(const UA_String eventSourceName);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/historydatabase.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/historydatabase.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -42826,7 +42826,7 @@ struct UA_HistoryDatabase {
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/client.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/client.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -43665,7 +43665,7 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/client_highlevel_async.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/client_highlevel_async.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -44232,7 +44232,7 @@ UA_Client_addMethodNode_async(
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/client_subscriptions.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/client_subscriptions.h" ****/
 
 /* This Source Code Form i subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -44556,7 +44556,7 @@ UA_Client_MonitoredItem_setContext(UA_Client *client,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/client_highlevel.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/client_highlevel.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -45016,7 +45016,7 @@ UA_Client_forEachChildNodeCall(
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/server_pubsub.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/server_pubsub.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -46148,7 +46148,7 @@ _UA_END_DECLS
 
 #endif /* UA_SERVER_PUBSUB_H */
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/server.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/server.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -48602,7 +48602,7 @@ _UA_END_DECLS
 #endif
 
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/pubsub.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/pubsub.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -48890,7 +48890,7 @@ _UA_END_DECLS
 
 #endif /* UA_PUBSUB_H */
 
-/**** amalgamated original file "ft-machine/external/open62541/include/open62541/plugin/nodestore.h" ****/
+/**** amalgamated original file "chine/external/open62541/include/open62541/plugin/nodestore.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -49495,7 +49495,7 @@ UA_Node_clear(UA_Node *node);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/accesscontrol_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/accesscontrol_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -49545,7 +49545,7 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/certificategroup_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/certificategroup_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -49644,7 +49644,7 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/log_stdout.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/log_stdout.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -49670,7 +49670,7 @@ UA_Log_Stdout_new(UA_LogLevel minlevel);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/nodestore_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/nodestore_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -49693,7 +49693,7 @@ UA_EXPORT UA_Nodestore * UA_Nodestore_ZipTree(void);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/server_config_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/server_config_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -50046,7 +50046,7 @@ UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config);
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/client_config_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/client_config_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -50077,7 +50077,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/securitypolicy_default.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/securitypolicy_default.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
@@ -50202,7 +50202,7 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM(UA_PubSubSecurityPolicy *policy, char *user
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/create_certificate.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/create_certificate.h" ****/
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -50258,7 +50258,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 _UA_END_DECLS
 
 
-/**** amalgamated original file "ft-machine/external/open62541/plugins/include/open62541/plugin/log_syslog.h" ****/
+/**** amalgamated original file "chine/external/open62541/plugins/include/open62541/plugin/log_syslog.h" ****/
 
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.

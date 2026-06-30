@@ -14,6 +14,7 @@ idf_component_register(SRCS
                        PRIV_REQUIRES lwip esp_timer)
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
+    UA_ARCHITECTURE_FREERTOS
     UA_ARCHITECTURE_LWIP
 )
 

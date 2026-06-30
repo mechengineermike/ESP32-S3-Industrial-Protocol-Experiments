@@ -13,12 +13,12 @@ cmake -S external/open62541 \
   -B external/open62541-build \
   -DUA_ENABLE_AMALGAMATION=ON \
   -DUA_ENABLE_ENCRYPTION=OFF \
-  -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+  -DUA_ENABLE_SUBSCRIPTIONS=ON \
   -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF \
   -DUA_ENABLE_HISTORIZING=OFF \
   -DUA_ENABLE_DISCOVERY=OFF \
   -DUA_ENABLE_METHODCALLS=OFF \
-  -DUA_ENABLE_NODEMANAGEMENT=OFF \
+  -DUA_ENABLE_NODEMANAGEMENT=ON \
   -DUA_ENABLE_DIAGNOSTICS=OFF \
   -DUA_ENABLE_JSON_ENCODING=OFF \
   -DUA_ENABLE_XML_ENCODING=OFF \
@@ -26,7 +26,7 @@ cmake -S external/open62541 \
   -DUA_ENABLE_STATUSCODE_DESCRIPTIONS=OFF \
   -DUA_ENABLE_PUBSUB=OFF \
   -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
-  -DUA_NAMESPACE_ZERO=MINIMAL \
+  -DUA_NAMESPACE_ZERO=REDUCED \
   -DUA_LOGLEVEL=700 \
   -DUA_ARCHITECTURE=lwip \
   -DUA_MULTITHREADING=0 \
@@ -51,6 +51,11 @@ arch/lwip/eventloop_lwip_tcp.c
 arch/lwip/eventloop_lwip_udp.c
 ```
 
+The component must define both `UA_ARCHITECTURE_LWIP` and
+`UA_ARCHITECTURE_FREERTOS`. Without the FreeRTOS definition, the lwIP event loop
+selects a generic monotonic-clock path that does not drive subscription timers
+correctly on this ESP-IDF target.
+
 If regenerating open62541 from a fresh upstream checkout, refresh the amalgamated `open62541.c/.h` files and the vendored `arch/` and `deps/` support files together.
 
 Observed result:
@@ -65,8 +70,12 @@ Observed result:
 
 Notes:
 
-- `UA_NAMESPACE_ZERO=MINIMAL` requires PubSub to be disabled in this profile.
+- `UA_NAMESPACE_ZERO=REDUCED` plus node management is the current
+  browse-compatible profile.
 - Disabling XML encoding also required keeping XML value extraction out of scope.
 - `UA_ENABLE_TYPEDESCRIPTION=OFF` caused a generated-code compile failure because `UA_DataTypeMember.memberName` was still referenced. Leave typedescription enabled unless the generator/configuration issue is investigated further.
-- Turning off `UA_ENABLE_NODEMANAGEMENT` did not prevent this probe from compiling with `UA_Server_addVariableNode`, but future designs should verify whether their intended node-creation pattern is truly supported by the selected profile.
-- `UA_NAMESPACE_ZERO=REDUCED` was tested with the same aggressive feature cuts. It built and added about 71 KB of app flash compared with MINIMAL, but Python OPC UA clients failed during session creation. Treat REDUCED as unproven until retested with less aggressive feature cuts.
+- Turning off `UA_ENABLE_NODEMANAGEMENT` did not prevent variable creation in
+  the MINIMAL probe, but REDUCED with node management disabled produced
+  malformed session data. Keep node management enabled for this profile.
+- REDUCED plus node management restored standard endpoint, namespace, and tree
+  browsing while XML, diagnostics, and status-code descriptions remained off.

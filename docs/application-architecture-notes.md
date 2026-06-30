@@ -15,6 +15,8 @@ Target application:
 - A tuned open62541 OPC UA server works over Ethernet.
 - A real Python OPC UA client can open a session and read nodes.
 - The onboard TF/microSD card can be mounted and written while OPC UA remains reachable.
+- Periodic SD append logging works while a Python OPC UA client polls live nodes.
+- A simple writable OPC UA command node works in the current profile.
 - Current flashed OPC UA endpoint:
 
 ```text
@@ -27,11 +29,18 @@ opc.tcp://192.168.50.2:4840
 ns=1;s=simulated_value     Int32, expected 1234
 ns=1;s=firmware_status     Int32, expected 1
 ns=1;s=sd_status           Int32, expected 1 when SD mount + append worked
+ns=1;s=sd_append_count     Int32, increments every 5 seconds
+ns=1;s=reset_command       Int32, write 1 to trigger reset action
+ns=1;s=last_command_status Int32, increments after accepted reset command
+ns=1;s=internal_heap_free  Int32, current free internal heap bytes
+ns=1;s=internal_heap_min_free Int32, minimum free internal heap bytes since boot
+ns=1;s=psram_free          Int32, current free PSRAM bytes
+ns=1;s=psram_min_free      Int32, minimum free PSRAM bytes since boot
 ```
 
 - A second simple read-only Int32 node did not break client compatibility.
 - A third simple read-only Int32 node plus SD mount/write did not break client compatibility.
-- The tuned OPC UA + SD firmware remains small enough for the board's flash, with about 64% of the large app partition free.
+- The tuned OPC UA + periodic SD + command firmware remains small enough for the board's flash, with about 63% of the large app partition free.
 
 ## Important Cautions
 
@@ -66,7 +75,9 @@ Measured flash costs:
 | Tuned OPC UA, MINIMAL namespace, one node | `0x77d00` / 490 KB | 68% | Real client read worked. |
 | Tuned OPC UA, MINIMAL namespace, two nodes | `0x77df0` / 491 KB | 68% | Two explicit reads worked. |
 | Tuned OPC UA, REDUCED namespace, two nodes | `0x89350` / 562 KB | 63% | Built/flashed, but Python client session failed. |
-| Tuned OPC UA, MINIMAL namespace, SD append, three nodes | `0x88d50` / 560 KB | 64% | Currently flashed; three explicit reads work. |
+| Tuned OPC UA, MINIMAL namespace, SD append, three nodes | `0x88d50` / 560 KB | 64% | Three explicit reads worked. |
+| Tuned OPC UA, MINIMAL namespace, periodic SD, command nodes | `0x89360` / 562 KB | 63% | Reads, writes, command, and periodic append work. |
+| Tuned OPC UA, MINIMAL namespace, periodic SD, command, heap telemetry | `0x892d0` / 562 KB | 63% | Currently flashed; 2-minute polling soak passed. |
 
 Measured REDUCED namespace cost:
 
@@ -102,6 +113,43 @@ DIRAM linked remaining: 230,521 bytes
 IRAM linked use: 16,383 bytes of 16,384 bytes
 ```
 
+Current linked memory report for the flashed MINIMAL + periodic SD + command-node firmware:
+
+```text
+Total image size: 561,898 bytes
+App partition used: about 562 KB of 1,536 KB
+DIRAM linked use: 111,255 bytes of 341,760 bytes
+DIRAM linked remaining: 230,505 bytes
+IRAM linked use: 16,383 bytes of 16,384 bytes
+```
+
+Current linked memory report for the flashed MINIMAL + periodic SD + command + heap-telemetry firmware:
+
+```text
+Total image size: 561,754 bytes
+App partition used: about 562 KB of 1,536 KB
+DIRAM linked use: 111,271 bytes of 341,760 bytes
+DIRAM linked remaining: 230,489 bytes
+IRAM linked use: 16,383 bytes of 16,384 bytes
+```
+
+Runtime heap telemetry during a 2-minute OPC UA polling soak:
+
+```text
+Internal heap capacity reference: 341,760 bytes linked DIRAM region
+Runtime internal heap free:       287,515 bytes stable
+Runtime internal heap minimum:    286,135 bytes low-water mark
+PSRAM physical capacity:          8 MB
+Runtime PSRAM free:               8,300,392 bytes stable
+Runtime PSRAM minimum:            8,234,800 bytes low-water mark
+```
+
+Interpretation:
+
+- The runtime heap telemetry is more actionable than link-time DIRAM alone.
+- Internal heap still matters most, but the current small application has substantial runtime headroom in a short soak.
+- The short soak does not replace a long endurance test with real sensor parsing and final client behavior.
+
 Important interpretation:
 
 - The DIRAM number is a link-time section report, not the same as runtime free heap.
@@ -115,21 +163,24 @@ Estimated feature budget:
 | --- | ---: | --- | --- | --- |
 | Add a few read-only OPC UA Int32 nodes | Tiny | Low | Measured for second node | Add one at a time. |
 | PMS5003 UART parser | Small | Low | Inference | Use fixed 32-byte frame buffer. |
-| SD append logging | About +69 KB in current build | Medium | Boot-time append measured | Next test is periodic logging under OPC UA polling. |
-| Simple command node | Small | Medium | Write behavior not proven | Test one writable node in isolation. |
+| SD append logging | About +69 KB in current build | Medium | 2-minute periodic append/polling soak measured | Next test is longer soak with final data rate. |
+| Simple command node | Small | Medium | Proven for reset-style Int32 command | Use status/timestamp write access bits. |
 | I2C button input | Tiny | Low | Inference | Safe after OPC UA model stabilizes. |
 | Simple I2C OLED text display | Small to moderate | Low to medium | Inference | Use tiny driver, not LVGL first. |
 | Small HTTP status/config page | Moderate | Medium to high | Inference | Feasible, but test after OPC UA + SD. |
 | WiFi plus Ethernet services | Moderate | Medium to high | Not measured | Prefer Ethernet-only first. |
 | Rich web UI/assets from SD | Moderate flash, SD-heavy | Medium | Not measured | Serve static files carefully; avoid large dynamic pages. |
-| OPC UA discovery-friendly namespace | +71 KB flash for REDUCED attempt | Unknown | Measured flash, failed client | Do not use yet; explicit NodeId reads are better for now. |
+| OPC UA browse-compatible namespace | About +72 KB flash versus MINIMAL | About 74 KB internal heap | REDUCED + node management passed endpoint, namespace, tree, and value tests | Keep when TwinCAT/UAExpert-style browsing is required. |
+| Basic OPC UA subscriptions | About +13 KB flash | About 7 KB internal heap with one monitored item | Three SD-counter notifications observed in 12 seconds | Keep for TwinCAT/CODESYS watch and cyclic-client workflows. |
+| DHCP hostname + mDNS | About +31 KB flash in current build | About 3 KB internal heap after placing supported mDNS allocations in PSRAM | DHCP, `.local` resolution, and OPC UA read measured | Keep; this solves network location without enlarging namespace zero. |
 
 Scout/client strategy:
 
 - For a constrained embedded OPC UA server, explicit known NodeIds are a valid product strategy.
-- Generic tree browsing and NamespaceArray discovery are nice-to-have, not mandatory for a controlled sensor gateway.
+- Generic tree browsing and NamespaceArray discovery now work in the measured REDUCED + node-management profile.
 - If the client is your own tool, prefer a configured list of expected NodeIds and types.
-- Only pay the namespace/discovery cost if third-party tools must browse the device without prior knowledge.
+- Pay the roughly 72 KB flash and 74 KB internal-heap cost when third-party tools must browse the device without prior knowledge.
+- Treat network discovery and OPC UA address-space discovery as separate problems. DHCP hostname and mDNS locate the server; explicit NodeIds keep the server model small.
 
 ## Recommended Firmware Shape
 
@@ -150,7 +201,7 @@ Avoid:
 - dynamic allocation in the sensor hot path,
 - large JSON documents in RAM,
 - long in-memory history buffers,
-- enabling subscriptions/history/security until the basic server is proven stable.
+- enabling history or security until the basic server and subscriptions are proven stable.
 
 ## PMS5003 UART
 
@@ -172,7 +223,7 @@ Recommended experiment:
 
 ## SD Logging
 
-Expected fit: proven for boot-time append; periodic logging still needs measurement.
+Expected fit: proven for boot-time append and a short periodic append test; long soak still needs measurement.
 
 Reasoning:
 
@@ -188,14 +239,14 @@ unix_or_uptime_ms,pm1_0,pm2_5,pm10,status
 
 Recommended experiment:
 
-1. Extend the boot-time append into periodic sample logging.
+1. Run a longer soak with periodic sample logging and OPC UA polling.
 2. Flush periodically, not on every byte.
 3. Measure heap before mount, after mount, and during polling.
 4. Test behavior when the card is absent, full, or has a dirty filesystem.
 
 ## OPC UA Commands
 
-Expected fit: feasible, but not proven yet.
+Expected fit: feasible for simple Int32 command variables.
 
 Use simple command variables first:
 
@@ -207,14 +258,15 @@ last_command_status    read result
 Open question:
 
 - The first writable-node test returned `BadWriteNotSupported` from common Python client helpers.
-- This may require access-level bits for status/timestamp writes, a callback value source, or a less aggressive open62541 profile.
+- Root cause was missing status/timestamp write access bits and missing `userAccessLevel` on the writable node.
+- After adding those bits, both normal helper writes and low-level value-only writes worked.
 
 Recommended experiment:
 
-1. Add one writable Int32 command node.
-2. Test write from Python `opcua`.
-3. Test write from the intended OPC UA scout/client.
-4. Only then wire the command to firmware behavior.
+1. Keep command values simple, such as `write 1 to request action`.
+2. Keep command processing inside the OPC UA task or use a deliberate synchronization boundary.
+3. Test write behavior from the intended OPC UA clients, especially third-party tools.
+4. Add final commands one at a time.
 
 ## I2C OLED/LCD
 
