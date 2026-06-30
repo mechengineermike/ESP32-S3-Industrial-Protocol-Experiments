@@ -2,7 +2,13 @@
 
 This repository contains feasibility probes for running industrial Ethernet protocols on a Waveshare ESP32-S3-ETH board.
 
-The main result: the board is useful for lightweight Ethernet and Modbus TCP experiments. OPC UA Is pushing this device to the limit, it appears that it will work but leaves absolutely 0 room for any other services at all.
+The main result: the board is useful for lightweight Ethernet and Modbus TCP experiments, and a small OPC UA server is feasible when open62541 and ESP-IDF are configured for an embedded target. The earlier pessimistic OPC UA result came from a heavier open62541 profile, debug-oriented settings, and a large task stack placed in internal RAM.
+
+The current OPC UA probe also mounts the onboard TF/microSD card, appends one compact CSV line, and exposes that result through OPC UA. This means the repo now has a small but real proof that Ethernet OPC UA and SD logging can coexist on this board.
+
+For the detailed OPC UA investigation trail, including settings that were proven too heavy or incompatible, see [`docs/opcua-experiment-log.md`](docs/opcua-experiment-log.md).
+
+For notes on shaping this into a PMS5003 + SD logging + OPC UA gateway, see [`docs/application-architecture-notes.md`](docs/application-architecture-notes.md).
 
 ## Hardware Tested
 
@@ -13,6 +19,7 @@ The main result: the board is useful for lightweight Ethernet and Modbus TCP exp
 - W5500 Ethernet
 - USB-C serial/JTAG programming
 - Direct RJ45 connection to a Raspberry Pi reTerminal DM
+- Onboard TF/microSD slot tested with an 8 GB card
 
 The test network used static IP addresses:
 
@@ -69,24 +76,32 @@ What worked:
 - W5500 Ethernet initialized.
 - The Pi could ping the ESP32 after increasing the OPC UA task stack.
 - `UA_Server_new()` required a much larger FreeRTOS task stack than the first attempt.
+- After tuning, the OPC UA firmware built to about `0x77d00` bytes.
+- The tuned build left about 68% of the default large app partition free.
+- The tuned build answered ping at `192.168.50.2`.
+- TCP port `4840` accepted connections.
+- A raw OPC UA TCP `HEL` message received a valid `ACKF` response.
 
 Important constraints observed:
 
-- The OPC UA firmware image was large: about `0x15e1a0` bytes.
-- The default large single-app partition had only about 7% free after the OPC UA probe.
+- The first OPC UA firmware image was large: about `0x15e1a0` bytes.
+- The first large single-app partition had only about 7% free after the OPC UA probe.
 - A 24 KB OPC UA task stack crashed during open62541 namespace-zero initialization.
 - A 64 KB OPC UA task stack allowed the firmware to stay up and heartbeat.
-- Internal heap after open62541 startup was very tight, roughly 31 KB free in the observed run.
-- PSRAM remained mostly free, but the limiting resource appeared to be internal RAM and overall firmware complexity.
+- The first stable run left internal heap very tight, roughly 31 KB free.
+- The tuned build moves the 64 KB OPC UA task stack to PSRAM with ESP-IDF `xTaskCreateWithCaps`.
+- The tuned build uses open62541 `MINIMAL` namespace zero and disables features that are not needed for a tiny sensor server: encryption, subscriptions, historizing, discovery, method calls, node management, diagnostics, JSON, XML, PubSub, and status-code descriptions.
+- `UA_ENABLE_TYPEDESCRIPTION` had to remain enabled; disabling it caused generated open62541 code to fail compilation.
+- The current SD build mounts the onboard TF/microSD card and appends to `/sdcard/opclog.csv`.
 
 What remains unproven:
 
-- A successful OPC UA client connection to port `4840`.
-- Reading/writing the sample `SimulatedValue` node from UA Expert, CODESYS, TwinCAT, or a Python OPC UA client.
+- Reading/writing from UA Expert, CODESYS, TwinCAT, or other third-party OPC UA clients.
 - Stability under repeated OPC UA polling.
-- Coexistence with HTTP, SD card access, JSON parsing, and other application services.
+- Periodic SD logging under polling load.
+- Coexistence with HTTP, JSON parsing, and other application services.
 
-Interpretation: OPC UA may be possible as a focused demonstration, but this board is not a comfortable target for an application that also needs a web UI, file I/O, mission/config parsing, reporting APIs, and multiple protocol stacks.
+Interpretation: OPC UA is feasible for a focused ESP32-S3 application such as reading a PMS5003 particulate sensor, writing compact records to local SD, and exposing a small OPC UA address space over Ethernet. A larger product that also needs a rich web UI, reporting APIs, broad protocol support, and complex file/config handling should still be measured carefully because internal RAM and task-stack placement remain the key risks.
 
 ## Build And Flash
 
@@ -123,6 +138,16 @@ SPI host:  SPI2 / host 1
 Clock:     20 MHz
 ```
 
+The onboard TF/microSD slot is wired as SPI on a separate bus:
+
+```text
+CS GPIO:   4
+MISO GPIO: 5
+MOSI GPIO: 6
+SCLK GPIO: 7
+SPI host:  SPI3
+```
+
 The board also required octal PSRAM configuration:
 
 ```text
@@ -133,10 +158,29 @@ CONFIG_SPIRAM_USE_MALLOC=y
 
 ## Quick Tests
 
+Current OPC UA scout target:
+
+```text
+Endpoint: opc.tcp://192.168.50.2:4840
+Readable nodes:
+  ns=1;s=simulated_value     expected value: 1234
+  ns=1;s=firmware_status     expected value: 1
+  ns=1;s=sd_status           expected value: 1
+Security: None
+Message security mode: None
+Authentication: Anonymous
+```
+
 Ping:
 
 ```bash
 ping -c 3 -W 2 192.168.50.2
+```
+
+For a direct cable test, make sure the Pi-side Ethernet interface is also on the probe subnet. On the test Pi, `eth0` initially only had a `169.254.x.x` link-local address. This temporary command made the ESP32 reachable:
+
+```bash
+sudo ip addr add 192.168.50.1/24 dev eth0
 ```
 
 HTTP status:
@@ -151,6 +195,33 @@ Raw TCP reachability test for OPC UA:
 python3 -c 'import socket; s=socket.create_connection(("192.168.50.2",4840),timeout=5); print("connected"); s.close()'
 ```
 
+Raw OPC UA TCP `HEL` / `ACK` handshake test:
+
+```bash
+python3 -c 'import socket,struct; url=b"opc.tcp://192.168.50.2:4840"; body=struct.pack("<IIIIIi",0,65535,65535,0,0,len(url))+url; msg=b"HEL"+b"F"+struct.pack("<I",8+len(body))+body; s=socket.create_connection(("192.168.50.2",4840),timeout=3); s.sendall(msg); print(s.recv(64)[:4]); s.close()'
+```
+
+Using `opcuaScout` with the current `UA_NAMESPACE_ZERO=MINIMAL` firmware, prefer explicit reads. Namespace and tree discovery are sparse in this embedded profile:
+
+```bash
+cd /home/pi/IchorGAT/UTILS/opcua-scout
+python3 runOpcuaScout.py --endpoint opc.tcp://192.168.50.2:4840 --read 'ns=1;s=simulated_value'
+python3 runOpcuaScout.py --endpoint opc.tcp://192.168.50.2:4840 --read 'ns=1;s=firmware_status'
+python3 runOpcuaScout.py --endpoint opc.tcp://192.168.50.2:4840 --read 'ns=1;s=sd_status'
+```
+
+`sd_status` values:
+
+```text
+ 1  SD mounted and append logging worked
+ 0  SD probe not started
+-1  SD SPI bus init failed
+-2  SD mount failed
+-3  SD append open/write failed
+```
+
+`UA_NAMESPACE_ZERO=REDUCED` was tested as a possible discovery-friendly profile. It added about 71 KB of app flash compared with `MINIMAL`, but the Python OPC UA client failed during session creation with the current aggressive feature cuts. For now, explicit NodeId reads are the recommended client strategy.
+
 ## Lessons Learned
 
 - Use a known-good USB data cable. A bad cable caused misleading board/port symptoms early in the investigation.
@@ -158,15 +229,19 @@ python3 -c 'import socket; s=socket.create_connection(("192.168.50.2",4840),time
 - The W5500 config must be present in the generated `sdkconfig`, not only in `sdkconfig.defaults`. ESP-IDF will not automatically override an existing generated config choice just because defaults changed.
 - For this board, PSRAM must be set to octal mode. Quad PSRAM configuration caused boot failure.
 - Modbus TCP is readily achievable.
-- OPC UA via open62541 is possible to build, but it consumes enough flash, stack, and internal heap that it is not a comfortable foundation for a larger multi-service product on this board.
-- If OPC UA, web UI, file I/O, and reporting all matter at once, a Raspberry Pi-class Linux target is likely a better fit.
+- OPC UA via open62541 is feasible for a small server, but it needs an embedded profile and conscious memory choices.
+- SD append logging can coexist with the current OPC UA probe. In this build, adding FatFS/SDSPI plus one status node increased app size by about 69 KB, from about 491 KB to about 560 KB, leaving 64% of the current 1,536 KB app partition free.
+- Current FatFS config disables long filenames, so use 8.3 filenames such as `opclog.csv` unless long filename support is enabled and measured.
+- Keep OPC UA data models small. Avoid enormous generated nodesets and large in-memory history/config structures.
+- Put large FreeRTOS stacks in PSRAM where possible, and keep internal RAM for code paths that truly need it.
+- If OPC UA, web UI, file I/O, and reporting all matter at once, build incrementally and measure heap/stack after each service rather than assuming the ESP32-S3 is either impossible or unlimited.
 
 ## Suggested Next Steps For Anyone Continuing
 
-- Confirm OPC UA port `4840` accepts TCP connections.
 - Test with UA Expert or another real OPC UA client.
-- Try an even smaller open62541 configuration.
+- Read/write the `SimulatedValue` node from a real OPC UA client.
+- Add a PMS5003 UART reader and expose only a compact set of current measurements.
+- Extend SD logging from boot-time append to periodic sample logging and measure heap/stack again under polling load.
 - Move more allocations to PSRAM if possible.
 - Measure long-running heap stability.
 - Compare against ESP32-P4 or a Raspberry Pi-based implementation.
-
