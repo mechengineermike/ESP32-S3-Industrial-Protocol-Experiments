@@ -57,6 +57,111 @@ allow multicast DNS, the `.local` URL works without knowing the numeric IP.
 
 Your serial path will probably be different.
 
+## Industrial Protocol Capability
+
+The categories below distinguish protocols that can use the board's existing
+RJ45 connector from protocols that require additional electrical or
+protocol-specific hardware. "Feasible" means the ESP32-S3 has a credible
+implementation path; it does not mean that protocol conformance or production
+reliability has already been demonstrated.
+
+### Existing Board And RJ45
+
+- **OPC UA server: proven.** No hardware changes or additional connector. The
+  current firmware supports discovery, browsing, reads, writes, and basic
+  subscriptions through the onboard W5500 Ethernet port.
+- **Modbus TCP client/server: proven at MVP level.** No hardware changes or
+  additional connector. ESP-IDF has supported Modbus TCP implementations, and
+  this repository contains a working probe.
+- **EtherNet/IP adapter: strong candidate, not yet proven here.** No hardware
+  changes or additional connector. Explicit CIP messaging uses TCP, while
+  cyclic implicit I/O uses UDP. Both fit the existing Ethernet hardware. A
+  useful experiment must implement an adapter stack and measure requested
+  packet interval, packet loss, and jitter under simultaneous application
+  load. Do not claim deterministic reliability or ODVA conformance from CPU
+  speed alone.
+- **MQTT or Sparkplug B edge node: readily feasible.** No hardware changes.
+  This is common for industrial telemetry and SCADA integration, although it
+  is not a deterministic fieldbus. TLS and large message buffers would consume
+  more RAM than plain MQTT.
+- **BACnet/IP device: feasible, untested.** No hardware changes. Primarily
+  relevant to building automation; requires an embedded BACnet stack.
+- **DNP3 over TCP outstation: feasible, untested.** No hardware changes.
+  Appropriate for compact telemetry models; requires a suitable stack and
+  security assessment.
+- **IEC 60870-5-104 server: feasible, untested.** No hardware changes. The TCP/IP
+  transport fits readily; protocol-stack maturity and conformance are the main
+  work.
+- **HART-IP gateway/device: feasible in principle, untested.** No additional
+  connector when communicating only over standard Ethernet. Bridging to a
+  conventional 4-20 mA HART instrument additionally requires the HART hardware
+  described below.
+- **PROFINET IO Device, basic RT classes: possible but high investment.** The
+  existing RJ45 may be usable through W5500 raw Ethernet support, but this is
+  not a ready path. It needs a suitable embedded stack, real-time/jitter
+  validation, GSDML integration, and conformance testing. IRT-class operation
+  should be assumed to need more specialized hardware.
+
+### Simple External Interface Hardware
+
+- **Modbus RTU/ASCII over RS-485: readily feasible.** Add a 3.3 V-compatible
+  RS-485 transceiver, preferably isolated for industrial use, plus an
+  A/B/ground terminal and proper termination/biasing.
+- **CANopen: readily feasible.** Add an ISO 11898-2 CAN transceiver and CAN
+  connector/termination. The ESP32-S3 contains one Classical CAN-compatible
+  TWAI controller.
+- **SAE J1939: readily feasible.** Uses the same external Classical CAN
+  transceiver hardware. The application must implement or integrate the J1939
+  stack and parameter groups.
+- **DeviceNet: technically possible.** Add an isolated CAN transceiver,
+  DeviceNet power/interface circuitry, and the required five-wire connector.
+  Stack licensing and conformance make this more involved than CANopen.
+- **Serial vendor protocols over RS-232: readily feasible.** Add an RS-232
+  level shifter such as a 3.3 V MAX3232-class device and the appropriate
+  connector.
+- **BACnet MS/TP: feasible.** Add the same class of isolated RS-485 interface
+  used for Modbus RTU and integrate a BACnet MS/TP stack.
+- **IEC 60870-5-101 or serial DNP3: feasible.** Add the physical interface
+  required by the target equipment, commonly isolated RS-232 or RS-485.
+
+### Dedicated Protocol Hardware
+
+- **EtherCAT SubDevice/slave: not realistic through the W5500 alone.** Add an
+  EtherCAT SubDevice Controller ASIC/FPGA/module and its Ethernet
+  magnetics/connectors. EtherCAT slave frames are processed on the fly in
+  dedicated hardware; the ESP32 can then run the application and mailbox
+  stack through the controller's SPI or parallel interface.
+- **PROFIBUS DP device: requires specialized hardware.** Use a PROFIBUS
+  transceiver and normally a dedicated protocol ASIC/module, isolation, and a
+  PROFIBUS connector. This is not a simple UART firmware addition.
+- **Conventional wired HART: requires a HART analog front end.** Add a Bell
+  202-compatible HART modem, filtering/coupling, isolation as needed, and the
+  4-20 mA loop interface/terminals.
+- **IO-Link master/device: requires an IO-Link PHY/transceiver.** Add the
+  appropriate protected 24 V physical-layer device and usually an M12
+  connector. Master implementations also need per-port power and protection.
+- **FOUNDATION Fieldbus H1: requires a fieldbus communication and physical-layer
+  interface.** This is a specialized product design involving the H1 media
+  attachment unit, stack, isolation/power considerations, and certification.
+
+Important boundaries:
+
+- The ESP32-S3 TWAI controller supports Classical CAN frames, not CAN FD.
+- Industrial isolation, surge/ESD protection, termination, hazardous-location
+  requirements, and certification are separate from protocol feasibility.
+- EtherNet/IP, PROFINET, EtherCAT, HART, DeviceNet, and FOUNDATION Fieldbus
+  products may require organization membership, licensed specifications or
+  stacks, vendor identification, and formal conformance testing.
+- Running several large protocol stacks simultaneously must be evaluated
+  against internal heap, not only flash size.
+
+Primary technical references include the
+[ESP-IDF TWAI documentation](https://docs.espressif.com/projects/esp-idf/en/v5.4.4/esp32s3/api-reference/peripherals/twai.html),
+[ESP-Modbus documentation](https://docs.espressif.com/projects/esp-idf/en/v5.1/esp32/api-reference/protocols/modbus.html),
+[ODVA EtherNet/IP overview](https://www.odva.org/publication_download/ethernet-ip-technology-overview/),
+[EtherCAT technology description](https://www.ethercat.org/en/technology.html),
+and [FieldComm Group HART overview](https://www.fieldcommgroup.org/technologies/hart/hart-technology-explained).
+
 ## Firmware Probes
 
 ### `firmware/ethernet_status`
